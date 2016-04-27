@@ -11,12 +11,14 @@ if use_python:
 else:
     os.environ["GLOG_log_dir"] = log_path # only if using glog
 
-# python and caffe
+# Python and caffe
 import numpy as np
 import caffe
 from caffe.proto import caffe_pb2
 from pycaffe.train.output_grabber import *
 from pycaffe.train.custom_log_utils import *
+from pycaffe.metrics.inference import metrics_from_net
+from sklearn.metrics import accuracy_score
 
 def train_test_net_command(solver_config_path):
     """
@@ -31,7 +33,7 @@ def train_test_net_command(solver_config_path):
                                                       solver=solver_config_path)
     subprocess.call(command, shell=True)
 
-def train_test_net_python(solver_path, log_path, accuracy=False, print_every=100, debug=False):
+def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metrics=accuracy_score, key_label='label', key_score='score', threshold=0.5, print_every=100, debug=False):
     """
     Pythonic alternative to train/test a network:
     it captures stderr and logs it to a custom log file.
@@ -39,13 +41,17 @@ def train_test_net_python(solver_path, log_path, accuracy=False, print_every=100
     Errors in C can't be seen in python, so use subprocess.call
     to see if the script terminated.
 
-	solver_path		- str - Path to the solver's prototxt.
-	log_path		- str - Path to the log file.
-	accuracy		- boolean - Compute accuracy?
-	print_every		- int - Prints indications to the command line every print_every iteration.
-	debug			- boolean - Activate debugging? If True, log won't be captured.
+	solver_path (str)			- Path to the solver's prototxt.
+	log_path (str)				- Path to the log file.
+	accuracy (boolean)			- Compute accuracy?
+	accuracy_metrics (function)	- Accuracy metrics as a function of a net
+	key_label (str)				-
+	key_score (str)				-
+	threshold (float)			-
+	print_every (int)			- Prints indications to the command line every print_every iteration.
+	debug (boolean)				- Activate debugging? If True, log won't be captured.
     """
-    from sklearn.metrics import recall_score, accuracy_score
+	# Start stream redirection using pycaffe.train.output_grabber
     start_time = time.time()
     out = start_output(debug, init=True)
     # Get useful parameters from prototxts
@@ -66,20 +72,8 @@ def train_test_net_python(solver_path, log_path, accuracy=False, print_every=100
         # Regularly compute accuracy on test set
         if accuracy:
             if it % test_interval == 0:
-                solver.test_nets[0].forward()
-                # retrieve labels and predictions
-                y_true = solver.test_nets[0].blobs['label'].data
-                y_prob = solver.test_nets[0].blobs['score'].data
-                # reshape labels and predictions
-                y_true = np.squeeze(y_true)
-                y_prob = np.squeeze(y_prob)
-                if y_true.ndim == 1:
-                    n = y_true.shape[0]
-                    y_true.reshape(1, n)
-                    y_prob.reshape(1, n)
-                y_pred = np.array([[prob>=0.5 for prob in preds] for preds in y_prob])
-                value_accuracy = accuracy_score(y_true, y_pred)
-                #value_accuracy = recall_score(y_true, y_pred, average='macro')
+				value_accuracy = metrics_from_net(solver.test_nets[0], accuracy_metrics, key_label, key_score, threshold)
+				# TODO: here please test that the forward pass on the test net is working...
                 log_entry(debug, out, "Test net output #1: accuracy = {}".format(value_accuracy))
 
         # Regularly print iteration
