@@ -1,35 +1,22 @@
-def start_output(debug, init=False):
-    """
-    Start stderr grabber
-    """
-    if not debug:
-        out = OutputGrabber()
-        out.start(init)
-        return out
-    return None
+import sys, os, time
+from pycaffe.utils.custom_log import make_time_stamp
 
-def write_output(debug, out, entry):
-    if not debug:
-        out.write(entry)
+def log_entry(debug, out, text):
+    """
+    Standardized log entries for glog
+    """
+    # Format log entry
+    monthday = make_time_stamp('%m%d')
+    time_stamp = make_time_stamp('%H:%M:%S')
+    now = time.time()
+    ms = "."+str('%06d' % int((now - int(now)) * 1000000))
+    line_form = "I{monthday} {time_stamp}  0000 main.py:00] {text}\n"
+    entry = line_form.format(monthday=monthday, time_stamp=time_stamp+ms, text=text)
+
+    # Log entry to out
+    write_output(debug, out, entry)
     pass
 
-def purge_output(debug, out, log_path):
-    """
-    Stop and start stderr grabber in the same log file
-    """
-    if not debug:
-        stop_output(debug, out, log_path)
-        new_out = start_output(debug)
-        return new_out
-    return None
-
-def stop_output(debug, out, log_path):
-    """
-    Stop stderr grabber and close files
-    """
-    if not debug:
-        out.stop(log_path)
-    pass
 
 class OutputGrabber(object):
     """
@@ -98,3 +85,36 @@ class OutputGrabber(object):
                 break
             self.capturedtext += data
         pass
+
+def start_output(debug, init=False):
+    """
+    Start stderr grabber
+    """
+    if not debug:
+        out = OutputGrabber()
+        out.start(init)
+        return out
+    return None
+
+def write_output(debug, out, entry):
+    if not debug:
+        out.write(entry)
+    pass
+
+def purge_output(debug, out, log_path):
+    """
+    Stop and start stderr grabber in the same log file
+    """
+    if not debug:
+        stop_output(debug, out, log_path)
+        new_out = start_output(debug)
+        return new_out
+    return None
+
+def stop_output(debug, out, log_path):
+    """
+    Stop stderr grabber and close files
+    """
+    if not debug:
+        out.stop(log_path)
+    pass

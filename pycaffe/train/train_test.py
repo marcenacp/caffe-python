@@ -15,8 +15,8 @@ else:
 import numpy as np
 import caffe
 from caffe.proto import caffe_pb2
-from pycaffe.train.output_grabber import *
-from pycaffe.train.custom_log_utils import *
+from pycaffe.utils.output_grabber import *
+from pycaffe.utils.custom_log import *
 from pycaffe.metrics.inference import metrics_from_net
 from sklearn.metrics import accuracy_score
 
@@ -72,8 +72,7 @@ def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metric
         # Regularly compute accuracy on test set
         if accuracy:
             if it % test_interval == 0:
-				value_accuracy = metrics_from_net(solver.test_nets[0], accuracy_metrics, key_label, key_score, threshold)
-				# TODO: here please test that the forward pass on the test net is working...
+                value_accuracy = metrics_from_net(solver.test_nets[0], accuracy_metrics, key_label, key_score, threshold)
                 log_entry(debug, out, "Test net output #1: accuracy = {}".format(value_accuracy))
 
         # Regularly print iteration
