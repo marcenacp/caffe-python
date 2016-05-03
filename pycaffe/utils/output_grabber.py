@@ -17,6 +17,18 @@ def log_entry(debug, out, text):
     write_output(debug, out, entry)
     pass
 
+def correct_log(log_path):
+    """
+    Remove non-glog lines
+    """
+    with open(log_path, "r") as f:
+        lines = f.readlines()
+    with open(log_path, "w") as f:
+        for line in lines:
+            if line[0] == "I" or line[0:19] == "Log file created at":
+                f.write(line)
+    pass
+
 
 class OutputGrabber(object):
     """
@@ -70,6 +82,8 @@ class OutputGrabber(object):
         f = open(filename, "a")
         f.write(self.capturedtext)
         f.close()
+		# Correct non glog outputs
+        correct_log(filename)
         pass
 
     def readOutput(self):

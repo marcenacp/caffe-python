@@ -18,6 +18,7 @@ from caffe.proto import caffe_pb2
 from pycaffe.utils.output_grabber import *
 from pycaffe.utils.custom_log import *
 from pycaffe.metrics.inference import metrics_from_net
+from pycaffe.metrics.multi_label_metrics import all_measures
 from sklearn.metrics import accuracy_score
 
 def train_test_net_command(solver_config_path):
@@ -44,7 +45,11 @@ def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metric
 	solver_path (str)			- Path to the solver's prototxt.
 	log_path (str)				- Path to the log file.
 	accuracy (boolean)			- Compute accuracy?
-	accuracy_metrics (function)	- Accuracy metrics as a function of a net
+	accuracy_metrics (function)	- Accuracy metrics as a function of a net or descriptive string
+                                  Possible string accuracies are to be found in caffe.metrics:
+                                  ['macro_precision', 'micro_precision', 'macro_recall',
+                                   'micro_recall', 'macro_f1', 'micro_f1', 'precision',
+                                   'recall', 'f1', 'hamming_accuracy']
 	key_label (str)				-
 	key_score (str)				-
 	threshold (float)			-
@@ -64,6 +69,15 @@ def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metric
     solver = caffe.get_solver(solver_path)
     # Log solving
     log_entry(debug, out, "Solving")
+    # Selected accuracy metrics
+    possible_values = ['macro_precision', 'micro_precision', 'macro_recall', 'micro_recall', 'macro_f1', 'micro_f1', 'precision', 'recall', 'f1', 'hamming_accuracy']
+    if isinstance(accuracy_metrics, basestring):
+        key_accuracy = accuracy_metrics
+        try:
+            possible_values.index(key_accuracy)
+            accuracy_metrics = lambda y_true, y_pred: all_measures(y_true, y_pred)[key_accuracy]
+        except ValueError:
+            print "{} is not a valid metrics, please choose between possible values: ".format(key_accuracy, possible_values)
 
     for it in range(max_iter):
         # Iterate

@@ -26,9 +26,9 @@ def print_learning_curve(net_prefix, log_path, fig_path, accuracy=True, format_x
         if format_x_axis:
             ticks, _ = plt.xticks()
             plt.xticks(ticks, ["%dK" % int(t/1000) for t in ticks])
-            plt.ylabel('loss')
-            plt.title(net_prefix+' on train and test sets')
-            plt.legend()
+    plt.ylabel('loss')
+    plt.title(net_prefix+' on train and test sets')
+    plt.legend()
     plt.grid()
     plt.savefig(fig_path + net_prefix + "_learning_curve.png")
 

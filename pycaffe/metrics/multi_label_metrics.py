@@ -16,7 +16,7 @@ def label_based_measures(y_true, y_pred):
     label-based learning: hamming_loss, precision, recall and f1
     """
     m = {}
-    m['hamming_loss'] = hamming_loss(y_true, y_pred)
+    m['hamming_accuracy'] = 1 - hamming_loss(y_true, y_pred)
     m['precision'], m['recall'], m['f1'], _ = precision_recall_fscore_support(y_true, y_pred)
     return m
 
