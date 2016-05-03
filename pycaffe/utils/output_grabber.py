@@ -75,9 +75,13 @@ class OutputGrabber(object):
         self.origstream.write(self.escape_char)
         self.readOutput()
         # Close the pipe
-        os.close(self.pipe_out)
+        self.pipe_out.close()
+        self.pipe_in.close()
         # Restore the original stream
         os.dup2(self.streamfd, self.origstreamfd)
+        self.origstream.close()
+        self.origstreamfd.close()
+        self.streamfd.close()
         # Write to file filename
         f = open(filename, "a")
         f.write(self.capturedtext)

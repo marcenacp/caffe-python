@@ -92,10 +92,6 @@ def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metric
         # Regularly print iteration
         if it % print_every == 0:
             print "Iteration", it
-
-        # Regularly purge stderr/output grabber
-        if it % 1000 == 0:
-            out = purge_output(debug, out, log_path)
     # Break output stream and write to log
     stop_output(debug, out, log_path)
     pass
