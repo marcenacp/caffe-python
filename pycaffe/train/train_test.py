@@ -63,8 +63,8 @@ def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metric
     max_iter = get_prototxt_parameter("max_iter", solver_path)
     test_interval = get_prototxt_parameter("test_interval", solver_path)
     # Work on GPU and load solver
-    caffe.set_device(0)
-    caffe.set_mode_gpu()
+    #caffe.set_device(0)
+    #caffe.set_mode_gpu()
     solver = None
     solver = caffe.get_solver(solver_path)
     # Log solving

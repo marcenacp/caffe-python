@@ -38,10 +38,10 @@ class OutputGrabber(object):
 
     def __init__(self, stream=sys.stderr):
         self.origstream = stream
-        self.origstreamfd = self.origstream.fileno()
+        self.origstreamfd = stream.fileno()
         self.capturedtext = ""
         # Create a pipe so the stream can be captured
-        self.pipe_out, self.pipe_in = os.pipe()
+        self.pipeout, self.pipein = os.pipe()
         pass
 
     def start(self, init=False):
@@ -52,7 +52,7 @@ class OutputGrabber(object):
         # Save a copy of the stream
         self.streamfd = os.dup(self.origstreamfd)
         # Replace the original stream with our write pipe
-        os.dup2(self.pipe_in, self.origstreamfd)
+        os.dup2(self.pipein, self.origstreamfd)
         # Patch log file with time stamp on first line if initialization
         if init:
             time_stamp = make_time_stamp('%Y/%m/%d %H-%M-%S')
@@ -68,20 +68,14 @@ class OutputGrabber(object):
         """
         Stop capturing the stream data and save the text in `capturedtext`
         """
-        # Flush the stream to make sure all our data goes in before
-        # the escape character.
+        # Flush the stream to make sure all our data goes in before the escape character.
         self.origstream.flush()
         # Print the escape character to make the readOutput method stop
         self.origstream.write(self.escape_char)
         self.readOutput()
-        # Close the pipe
-        self.pipe_out.close()
-        self.pipe_in.close()
         # Restore the original stream
         os.dup2(self.streamfd, self.origstreamfd)
         self.origstream.close()
-        self.origstreamfd.close()
-        self.streamfd.close()
         # Write to file filename
         f = open(filename, "a")
         f.write(self.capturedtext)
@@ -96,7 +90,7 @@ class OutputGrabber(object):
         and save the text in `capturedtext`
         """
         while True:
-            data = os.read(self.pipe_out, 1)  # Read One Byte Only
+            data = os.read(self.pipeout, 1)  # Read One Byte Only
             if self.escape_char in data:
                 break
             if not data:
