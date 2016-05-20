@@ -38,7 +38,7 @@ class OutputGrabber(object):
 
     def __init__(self, stream=sys.stderr):
         self.origstream = stream
-        self.origstreamfd = stream.fileno()
+        self.origstreamfd = self.origstream.fileno()
         self.capturedtext = ""
         # Create a pipe so the stream can be captured
         self.pipeout, self.pipein = os.pipe()
