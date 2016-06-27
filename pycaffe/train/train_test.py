@@ -1,30 +1,12 @@
-import os
-import sys
-import subprocess
-import time, datetime
-
-# Setting log environment variables before importing caffe
-use_python = True
-os.environ["GLOG_minloglevel"] = "0"
-if use_python:
-    os.environ["GLOG_logtostderr"] = "1" # only if using custom log
-else:
-    os.environ["GLOG_log_dir"] = log_path # only if using glog
-
-# Python and caffe
+import os, sys, subprocess, time, datetime
 import numpy as np
-import caffe
-from caffe.proto import caffe_pb2
-from pycaffe.utils.output_grabber import *
-from pycaffe.utils.custom_log import *
-from pycaffe.metrics.inference import metrics_from_net
-from pycaffe.metrics.multi_label_metrics import all_measures
 from sklearn.metrics import accuracy_score
 
 def train_test_net_command(solver_config_path):
     """
     Train/test process launching cpp solver from shell.
     """
+    import caffe
     # Load solver
     solver = None
     solver = caffe.get_solver(solver_config_path)
@@ -34,7 +16,12 @@ def train_test_net_command(solver_config_path):
                                                       solver=solver_config_path)
     subprocess.call(command, shell=True)
 
-def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metrics=accuracy_score, key_label='label', key_score='score', threshold=0.5, print_every=100, debug=False):
+def train_test_net_python(solver_path, log_path, accuracy=False,
+                          accuracy_metrics=accuracy_score,
+                          threshold=0.5, print_every=100,
+                          key_label='label', key_score='score',
+                          solverstate=None, caffemodel=None,
+                          debug=True):
     """
     Pythonic alternative to train/test a network:
     it captures stderr and logs it to a custom log file.
@@ -43,55 +30,80 @@ def train_test_net_python(solver_path, log_path, accuracy=False, accuracy_metric
     to see if the script terminated.
 
 	solver_path (str)			- Path to the solver's prototxt.
-	log_path (str)				- Path to the log file.
-	accuracy (boolean)			- Compute accuracy?
-	accuracy_metrics (function)	- Accuracy metrics as a function of a net or descriptive string
-                                  Possible string accuracies are to be found in caffe.metrics:
-                                  ['macro_precision', 'micro_precision', 'macro_recall',
-                                   'micro_recall', 'macro_f1', 'micro_f1', 'precision',
-                                   'recall', 'f1', 'hamming_accuracy']
-	key_label (str)				-
-	key_score (str)				-
-	threshold (float)			-
-	print_every (int)			- Prints indications to the command line every print_every iteration.
+	log_path (str)				- Path to the log directory.
+	accuracy (bool)    			- Compute accuracy?
+	accuracy_metrics (fun)     	- Accuracy metrics as a function of a net or descriptive string
+                                  Possible string accuracies are to be found in caffe.metrics
+	threshold (float)			- Threshold
+	key_label (str)				- Label key
+	key_score (str)				- Score key
+    solverstate (string or None)- Full path to the solver state to begin from (weights and training params)
+    caffemodel (string or None) - Full path to the Caffe model to begin from (weights only)
 	debug (boolean)				- Activate debugging? If True, log won't be captured.
     """
+    # Setting log environment variables before importing caffe
+    os.environ["GLOG_logtostderr"] = "1"
+    if debug:
+        os.environ["FLAGS_log_dir"] = log_path
+        os.environ["GLOG_log_dir"] = log_path
+    import caffe
+    from caffe.proto import caffe_pb2
+    from pycaffe.utils.output_grabber import *
+    from pycaffe.utils.custom_log import *
+    from pycaffe.metrics.inference import metrics_from_net
+    from pycaffe.metrics.multi_label_metrics import all_measures
 	# Start stream redirection using pycaffe.train.output_grabber
-    start_time = time.time()
-    out = start_output(debug, init=True)
+    out = start_output(debug, log_path)
     # Get useful parameters from prototxts
     max_iter = get_prototxt_parameter("max_iter", solver_path)
     test_interval = get_prototxt_parameter("test_interval", solver_path)
+    display = get_prototxt_parameter("display", solver_path)
+    # Get metrics we want to return
+    dic = {}
+    dic['loss'] = {}
+    dic['loss']['train'] = np.empty(max_iter)
+    dic['loss']['train'][:] = np.nan
+    dic['loss']['test'] = np.empty(max_iter)
+    dic['loss']['test'][:] = np.nan
+    if accuracy:
+        dic['accuracy'] = {}
+        dic['accuracy']['test'] = np.empty(max_iter)
+        dic['accuracy']['test'][:] = np.nan
     # Work on GPU and load solver
     caffe.set_device(0)
     caffe.set_mode_gpu()
     solver = None
     solver = caffe.get_solver(solver_path)
+    if solverstate is not None:
+        solver.restore(solverstate)
+    if caffemodel is not None:
+        solver.net.copy_from(caffemodel)
     # Log solving
     log_entry(debug, out, "Solving")
-    # Selected accuracy metrics
-    #possible_values = ['macro_precision', 'micro_precision', 'macro_recall', 'micro_recall', 'macro_f1', 'micro_f1', 'precision', 'recall', 'f1', 'hamming_accuracy']
-    #if isinstance(accuracy_metrics, basestring):
-    #    key_accuracy = accuracy_metrics
-    #    try:
-    #        possible_values.index(key_accuracy)
-    #        accuracy_metrics = lambda y_true, y_pred: all_measures(y_true, y_pred)[key_accuracy]
-    #    except ValueError:
-    #        print "{} is not a valid metrics, please choose between possible values: ".format(key_accuracy, possible_values)
 
     for it in range(max_iter):
         # Iterate
         solver.step(1)
 
-        # Regularly compute accuracy on test set
-        if accuracy:
-            if it % test_interval == 0:
-                value_accuracy = metrics_from_net(solver.test_nets[0], accuracy_metrics, key_label, key_score, threshold)
+        # Regularly compute metrics on train set
+        if it % display == 0:
+            dic['loss']['train'][it] = solver.net.blobs['loss'].data
+
+        # Perform adaptive weight noise (regularization method)
+        #for _, blob_vec in solver.net.params.iteritems():
+        #    for blob in blob_vec:
+        #        blob.data[...] += np.random.normal(0, .0075, blob.shape)
+
+        # Regularly compute metrics on test set
+        if it % test_interval == 0:
+            # DO WE NEED? solver.test_nets[0].forward()
+            dic['loss']['test'][it] = solver.test_nets[0].blobs['loss'].data
+            if accuracy:
+                value_accuracy = metrics_from_net(solver.test_nets[0], accuracy_metrics,
+                                                  key_label, key_score, threshold)
+                dic['accuracy']['test'][it] = value_accuracy
                 log_entry(debug, out, "Test net output #1: accuracy = {}".format(value_accuracy))
 
-        # Regularly print iteration
-        if it % print_every == 0:
-            print "Iteration", it
     # Break output stream and write to log
-    stop_output(debug, out, log_path)
-    pass
+    stop_output(out)
+    return dic

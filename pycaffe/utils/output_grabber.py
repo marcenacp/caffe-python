@@ -13,8 +13,8 @@ def log_entry(debug, out, text):
     line_form = "I{monthday} {time_stamp}  0000 main.py:00] {text}\n"
     entry = line_form.format(monthday=monthday, time_stamp=time_stamp+ms, text=text)
 
-    # Log entry to out
-    write_output(debug, out, entry)
+    # Log entry to stderr
+    sys.stderr.write(entry)
     pass
 
 def correct_log(log_path):
@@ -29,104 +29,77 @@ def correct_log(log_path):
                 f.write(line)
     pass
 
+def list_fds():
+    """
+    List of all open fds for debugging
+    """
+    for num in os.listdir('/proc/self/fd/'):
+        try:
+            path = os.readlink(os.path.join('/proc/self/fd', num))
+            print(num, path)
+        except: # TODO remove FileNotFoundError:
+            print(num, '[closed]')
+
 
 class OutputGrabber(object):
     """
     Class used to grab stderr (default) or another stream
     """
-    escape_char = "\b"
+    def __init__(self, stream=sys.stderr, output_path="/tmp"):
+        self.replaced_stream = stream
+        if os.path.isdir(output_path):
+            self.output_path = os.path.abspath(output_path) + "/caffe.INFO"
+        else:
+            raise ValueError("Please, provide a valid output path for logging")
 
-    def __init__(self, stream=sys.stderr):
-        self.origstream = stream
-        self.origstreamfd = self.origstream.fileno()
-        self.capturedtext = ""
-        # Create a pipe so the stream can be captured
-        self.pipeout, self.pipein = os.pipe()
-        pass
+    def start(self):
+        self.replaced_fd = self.replaced_stream.fileno()
+        self.backup_fd = os.dup(self.replaced_stream.fileno())
+        self.output_file = open(self.output_path, 'a')
+        self.replaced_stream.flush()
+        os.dup2(self.output_file.fileno(), self.replaced_stream.fileno())
 
-    def start(self, init=False):
-        """
-        Start capturing the stream data
-        """
-        self.capturedtext = ""
-        # Save a copy of the stream
-        self.streamfd = os.dup(self.origstreamfd)
-        # Replace the original stream with our write pipe
-        os.dup2(self.pipein, self.origstreamfd)
-        # Patch log file with time stamp on first line if initialization
-        if init:
-            time_stamp = make_time_stamp('%Y/%m/%d %H-%M-%S')
-            log_beginning = "Log file created at: {}\n".format(time_stamp)
-            self.origstream.write(log_beginning)
-        pass
+    def stop(self):
+        self.output_file.flush()
+        os.dup2(self.backup_fd, self.replaced_fd)
+        self.output_file.close()
+        os.close(self.backup_fd)
 
     def write(self, entry):
-        self.origstream.write(entry)
+        self.replaced_stream.write(entry)
         pass
 
-    def stop(self, filename):
-        """
-        Stop capturing the stream data and save the text in `capturedtext`
-        """
-        # Flush the stream to make sure all our data goes in before the escape character.
-        self.origstream.flush()
-        # Print the escape character to make the readOutput method stop
-        self.origstream.write(self.escape_char)
-        self.readOutput()
-        # Restore the original stream
-        os.dup2(self.streamfd, self.origstreamfd)
-        self.origstream.close()
-        # Write to file filename
-        f = open(filename, "a")
-        f.write(self.capturedtext)
-        f.close()
-		# Correct non glog outputs
-        correct_log(filename)
-        pass
-
-    def readOutput(self):
-        """
-        Read the stream data (one byte at a time)
-        and save the text in `capturedtext`
-        """
-        while True:
-            data = os.read(self.pipeout, 1)  # Read One Byte Only
-            if self.escape_char in data:
-                break
-            if not data:
-                break
-            self.capturedtext += data
-        pass
-
-def start_output(debug, init=False):
+def start_output(debug, output_path):
     """
     Start stderr grabber
     """
     if not debug:
-        out = OutputGrabber()
-        out.start(init)
+        out = OutputGrabber(output_path=output_path)
+        out.start()
         return out
     return None
 
-def write_output(debug, out, entry):
-    if not debug:
+def write_output(out, entry):
+    if out is not None:
         out.write(entry)
     pass
 
-def purge_output(debug, out, log_path):
+def purge_output(out):
     """
     Stop and start stderr grabber in the same log file
     """
+    debug = out is None
     if not debug:
-        stop_output(debug, out, log_path)
-        new_out = start_output(debug)
+        output_path = out.output_path
+        stop_output(out)
+        new_out = start_output(debug=debug, output_path=output_path)
         return new_out
     return None
 
-def stop_output(debug, out, log_path):
+def stop_output(out):
     """
     Stop stderr grabber and close files
     """
-    if not debug:
-        out.stop(log_path)
+    if out is not None:
+        out.stop()
     pass

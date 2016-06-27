@@ -1,5 +1,6 @@
-from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, hamming_loss
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support, hamming_loss, recall_score
 
+# Individual metrics
 def macro_recall(y_true, y_pred):
     """Built-in metrics"""
     return recall_score(y_true, y_pred, average='macro')
@@ -8,6 +9,7 @@ def micro_recall(y_true, y_pred):
     """Built-in metrics"""
     return recall_score(y_true, y_pred, average='micro')
 
+# Collections of metrics
 def example_based_measures(y_true, y_pred):
     """
     Evaluation measures used to assess the predictive performance in example-based

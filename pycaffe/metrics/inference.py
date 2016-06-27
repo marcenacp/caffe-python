@@ -5,14 +5,13 @@ def metrics_from_net(net, metrics, key_label, key_score, threshold=0.5):
     """
     Run metrics on a given net
     """
-    net.forward()
     y_true = net.blobs[key_label].data
     y_prob = net.blobs[key_score].data
     return metrics_from_blob(metrics, y_true, y_prob, threshold)
 
 def metrics_from_h5(h5_path, metrics, key_label, key_score, threshold=0.5):
     """
-    Run metrics on an HDF5 inference file
+    Run metrics on an HDF5 inference file (see nideep)
     """
     with h5py.File(h5_path, "r") as f:
         y_true = np.squeeze(f[key_label][:])
